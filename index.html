@@ -310,33 +310,381 @@ function flip(){
     if(lock || this === first || this.classList.contains("flipped")) return;
     sounds.flip();
     this.classList.add("flipped");
-    this.firstChild.style.visibility = "visible";
-    if(!first){ first = this; return; }
-    second = this;
-    moves++;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Quest</title>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<style>
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #1e3c72, #2a5298);
+  color: white;
+  overflow: hidden;
+  height: 100vh;
+}
+
+.screen { display: none; min-height: 100vh; padding: 20px; box-sizing: border-box; text-align: center; }
+.active { display: flex; flex-direction: column; justify-content: center; align-items: center; animation: fadeIn 0.4s ease-out; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.flash { animation: flash-anim 0.5s ease; }
+@keyframes flash-anim {
+  50% { transform: scale(1.2); color: #ffeb3b; text-shadow: 0 0 10px #ffeb3b; }
+}
+
+.selection-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+
+.box-preview {
+  width: 280px;
+  height: 100px;
+  background: rgba(255,255,255,0.1);
+  border: 2px dashed rgba(255,255,255,0.3);
+  border-radius: 15px;
+  margin: 20px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+}
+
+button {
+  background: linear-gradient(135deg, #ff512f, #f09819);
+  color: white; border: none; padding: 12px 20px;
+  border-radius: 50px; font-size: 16px; font-weight: bold; cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: 0.2s;
+}
+
+button.secondary { background: #4a90e2; }
+button.selected { outline: 3px solid #ffeb3b; transform: scale(1.05); }
+
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  max-width: 400px;
+  margin-top: 20px;
+}
+.lvl-btn { width: 60px; height: 60px; padding: 0; border-radius: 12px; font-size: 16px; position: relative; }
+
+/* Level Lock Styling */
+button.lvl-btn:disabled {
+  background: #2c3e50;
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+  color: #7f8c8d;
+}
+button.lvl-btn:disabled::after {
+  content: "🔒";
+  font-size: 10px;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+
+.topbar {
+  width: 90%; max-width: 400px; display: flex; justify-content: space-between;
+  padding: 15px; background: rgba(255,255,255,0.1); border-radius: 15px; margin-bottom: 20px;
+}
+
+#game { display: grid; gap: 8px; perspective: 1000px; position: relative; }
+
+.card {
+  width: 65px; height: 65px; background: #2c3e50; border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 32px; cursor: pointer; transition: 0.6s cubic-bezier(0.4, 0, 0.2, 1); 
+  transform-style: preserve-3d;
+  color: #333;
+}
+
+.card.flipped, .card.previewing { transform: rotateY(180deg); border-color: #f09819; }
+.theme-fruits .card.flipped, .theme-fruits .card.previewing { background: #e8f5e9; }
+.theme-poker .card.flipped, .theme-poker .card.previewing { background: #ffffff; }
+.theme-desserts .card.flipped, .theme-desserts .card.previewing { background: #fce4ec; }
+
+#countdown-overlay {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 100px;
+  font-weight: 900;
+  color: #ffeb3b;
+  text-shadow: 0 0 30px rgba(0,0,0,0.8);
+  z-index: 100;
+  pointer-events: none;
+  display: none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="splash" class="screen active"><h1>🧠 MEMORY QUEST 🧠</h1></div>
+
+<div id="home" class="screen">
+  <h1>Memory Quest</h1>
+  <img src="/pics/file_0000000050e471fa964ae6442c5aa774.png" style="width:180px;border-radius:12px;margin-bottom:10px;">
+  <p>Choose Theme</p>
+  <div class="selection-row">
+    <button class="secondary theme-opt" onclick="setTheme('fruits', this)">🍎 Fruits</button>
+    <button class="secondary theme-opt" onclick="setTheme('poker', this)">♠️ Poker</button>
+    <button class="secondary theme-opt" onclick="setTheme('desserts', this)">🍰 Desserts</button>
+  </div>
+
+  <p>Select Difficulty</p>
+  <div class="selection-row">
+    <button class="diff-opt" onclick="setDiff('easy', this)">Easy</button>
+    <button class="diff-opt" onclick="setDiff('medium', this)">Medium</button>
+    <button class="diff-opt" onclick="setDiff('hard', this)">Hard</button>
+  </div>
+
+  <div class="box-preview" id="boxPreview">🍎♠️🍰</div>
+
+  <button style="margin-top:20px; width: 200px;" onclick="goToLevels()">Next Step ▶</button>
+</div>
+
+<div id="levelSelect" class="screen">
+  <h2 id="modeTitle">LEVELS</h2>
+  <div class="level-grid" id="lvlContainer"></div>
+  <button style="background: #444; margin-top:20px;" onclick="showHome()">Back</button>
+</div>
+
+<div id="gameScreen" class="screen">
+  <div class="topbar">
+    <div id="movesLabel">Moves: <span id="moves">0</span></div>
+    <div id="lvlDisplay" style="font-weight: bold; color: #f09819;"></div>
+  </div>
+  <div id="game-wrapper">
+    <div id="game"></div>
+  </div>
+</div>
+
+<div id="winScreen" class="screen">
+  <h1 class="flash">🏆 LEVEL COMPLETE!</h1>
+  <p id="winText" style="font-size: 20px;"></p>
+  <button onclick="nextLevel()">Next Level</button>
+  <button style="background: #555" onclick="showHome()">Home</button>
+</div>
+
+<script>
+const themes = {
+    fruits: ["🍎","🍌","🍇","🍓","🍒","🍉","🥝","🍍","🍋","🍑","🍏","🥥"],
+    poker: ["♠️","♥️","♣️","♦️","🃏","🂠","🂡","🂢","🂣","🂤","🂥","🂦"],
+    desserts: ["🍰","🧁","🍦","🍩","🍪","🍫","🍭","🍮","🍧","🥨","🍩","🥧"]
+};
+
+let activeTheme = "fruits";
+let activeDiff = "easy";
+let first = null, second = null, lock = true;
+let moves = 0, matched = 0, currentLevel = 1;
+let rows = 4, cols = 4, musicStarted = false;
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playTone(freq, type, duration, vol) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + duration);
+}
+
+function startEngagingBGM() {
+    if (musicStarted) return;
+    musicStarted = true;
+    const chords = [[261, 329, 392], [392, 493, 587], [440, 523, 659], [349, 440, 523]];
+    let step = 0;
+    setInterval(() => {
+        let chord = chords[Math.floor(step / 8) % chords.length];
+        if (step % 4 === 0) playTone(60, 'sine', 0.2, 0.08);
+        playTone(chord[step % 3], 'sine', 0.6, 0.02);
+        step++;
+    }, 200);
+}
+
+const sounds = {
+    flip: () => playTone(400, 'triangle', 0.1, 0.03),
+    match: () => { playTone(523, 'sine', 0.3, 0.05); setTimeout(() => playTone(1046, 'sine', 0.4, 0.04), 100); },
+    fail: () => playTone(150, 'sawtooth', 0.2, 0.02),
+    win: () => { [523, 659, 783, 1046].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.6, 0.03), i * 150)); }
+};
+
+function setTheme(t, btn) {
+    activeTheme = t;
+    document.querySelectorAll('.theme-opt').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    document.getElementById('boxPreview').innerText = themes[t].slice(0, 3).join(" ");
+}
+
+function setDiff(d, btn) {
+    activeDiff = d;
+    document.querySelectorAll('.diff-opt').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+}
+
+function show(id){
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+}
+
+function showHome(){ show("home"); }
+setTimeout(() => {
+    showHome();
+    setTheme('fruits', document.querySelector('.theme-opt'));
+    setDiff('easy', document.querySelector('.diff-opt'));
+}, 1500);
+
+// UNIQUE KEY FOR LOCKING SYSTEM
+function getProgressKey() {
+    return `prog_${activeTheme}_${activeDiff}`;
+}
+
+function goToLevels() {
+    const container = document.getElementById("lvlContainer");
+    container.innerHTML = "";
+    
+    // Check saved progress for the specific theme/difficulty combo
+    let reached = parseInt(localStorage.getItem(getProgressKey())) || 1;
+    
+    document.getElementById("modeTitle").innerText = activeDiff.toUpperCase() + " LEVELS";
+    
+    for (let i = 1; i <= 20; i++) {
+        let btn = document.createElement("button");
+        btn.innerText = i; btn.className = "lvl-btn";
+        
+        // Lock logic: if i is greater than current reached level, disable it
+        if (i > reached) {
+            btn.disabled = true;
+        } else {
+            btn.onclick = () => startGame(i);
+        }
+        container.appendChild(btn);
+    }
+    show("levelSelect");
+}
+
+function startGame(lvl) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    startEngagingBGM();
+    currentLevel = lvl;
+    if(activeDiff === "easy"){ rows = 4; cols = 4; }
+    else if(activeDiff === "medium"){ rows = 5; cols = 4; }
+    else { rows = 6; cols = 4; }
+    setup();
+    show("gameScreen");
+}
+
+function setup(){
+    moves = 0; matched = 0; lock = true;
     document.getElementById("moves").innerText = moves;
-    check();
+    document.getElementById("lvlDisplay").innerText = `${activeDiff.toUpperCase()} - LVL ${currentLevel}`;
+    
+    const game = document.getElementById("game");
+    game.parentElement.className = `theme-${activeTheme}`;
+    
+    let totalCards = rows * cols;
+    let numPairs = totalCards / 2;
+    let shuffledEmojiSet = [...themes[activeTheme]];
+    shuffle(shuffledEmojiSet);
+    let selected = shuffledEmojiSet.slice(0, numPairs);
+    let deck = [...selected, ...selected];
+    shuffle(deck);
+
+    game.innerHTML = '<div id="countdown-overlay"></div>';
+    game.style.gridTemplateColumns = `repeat(${cols}, 65px)`;
+
+    deck.forEach(e => {
+        let c = document.createElement("div");
+        c.className = "card previewing";
+        c.dataset.emoji = e;
+        c.innerHTML = `<div>${e}</div>`;
+        c.onclick = flip;
+        game.appendChild(c);
+    });
+    runCountdown();
+}
+
+function runCountdown() {
+    const overlay = document.getElementById("countdown-overlay");
+    overlay.style.display = "block";
+    let count = 3;
+    overlay.innerText = count;
+    const timer = setInterval(() => {
+        count--;
+        if (count > 0) { overlay.innerText = count; playTone(440, 'sine', 0.1, 0.05); }
+        else if (count === 0) {
+            overlay.innerText = "GO!";
+            playTone(880, 'sine', 0.2, 0.05);
+            document.querySelectorAll('.card').forEach(c => {
+                c.classList.remove("previewing");
+                c.firstChild.style.visibility = "hidden";
+            });
+        } else { clearInterval(timer); overlay.style.display = "none"; lock = false; }
+    }, 1000);
+}
+
+function shuffle(a){
+    for(let i=a.length-1; i>0; i--){
+        let j = Math.floor(Math.random()*(i+1));
+        [a[i],a[j]] = [a[j],a[i]];
+    }
+}
+
+function flip(){
+  if(lock || this === first || this.classList.contains("flipped")) return;
+  sounds.flip();
+  this.classList.add("flipped");
+  this.firstChild.style.visibility = "visible";
+
+  if(!first){ first = this; return; }
+  second = this;
+  moves++;
+  document.getElementById("moves").innerText = moves;
+  check();
 }
 
 function check(){
-    if(first.dataset.emoji === second.dataset.emoji){
-        matched++; sounds.match(); reset();
-        if(matched === (rows * cols) / 2) triggerWin();
-    } else {
-        lock = true;
-        setTimeout(() => {
-            first.classList.remove("flipped"); second.classList.remove("flipped");
-            first.firstChild.style.visibility = "hidden"; second.firstChild.style.visibility = "hidden";
-            sounds.fail(); reset();
-        }, 700);
-    }
+  if(first.dataset.emoji === second.dataset.emoji){
+    matched++;
+    sounds.match();
+    reset();
+    if(matched === (rows * cols) / 2) triggerWin();
+  } else {
+    lock = true;
+    setTimeout(() => {
+      first.classList.remove("flipped");
+      second.classList.remove("flipped");
+      first.firstChild.style.visibility = "hidden";
+      second.firstChild.style.visibility = "hidden";
+      sounds.fail();
+      reset();
+    }, 700);
+  }
 }
 
 function reset(){ [first, second, lock] = [null, null, false]; }
 
 function triggerWin(){
-    let reached = parseInt(localStorage.getItem('prog_' + activeDiff)) || 1;
-    if (currentLevel >= reached) localStorage.setItem('prog_' + activeDiff, currentLevel + 1);
+    let reached = parseInt(localStorage.getItem(getProgressKey())) || 1;
+    // Only update if we finished the current "highest" level
+    if (currentLevel >= reached) {
+        localStorage.setItem(getProgressKey(), currentLevel + 1);
+    }
     sounds.win();
     confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     setTimeout(() => {
@@ -346,8 +694,13 @@ function triggerWin(){
 }
 
 function nextLevel(){
-    if (currentLevel < 20) startGame(currentLevel + 1);
-    else showHome();
+    // Check if next level is actually unlocked
+    let reached = parseInt(localStorage.getItem(getProgressKey())) || 1;
+    if (currentLevel + 1 <= reached && currentLevel < 20) {
+        startGame(currentLevel + 1);
+    } else {
+        showHome(); // Fallback if they try to skip ahead somehow
+    }
 }
 </script>
 </body>
